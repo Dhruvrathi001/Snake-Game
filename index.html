@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Snake Game</title>
+    <!-- Favicon: the tiny icon in browser tab -->
+    <link rel="shortcut icon" href="favicon.png" type="image/x-icon" />
+    <!-- Our main stylesheet -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <!-- 
+        The modal covers the whole screen.
+        It shows either the "start" screen or the "game over" screen.
+      -->
+      <div class="modal">
+        <!-- Start screen -->
+        <div class="start-game">
+          <h3>Welcome to Snake Game!</h3>
+          <button class="btn btn-start">Start Game</button>
+        </div>
+
+        <!-- Game over screen (hidden until player dies) -->
+        <div class="game-over">
+          <h3>Game Over!</h3>
+          <button class="btn btn-restart">Restart</button>
+        </div>
+      </div>
+
+      <!-- 
+        The main section of the game.
+        It includes the scoreboard and the game board itself.
+      -->
+      <section>
+        <!-- Top bar: scores + timer -->
+        <div class="infos">
+          <div class="info">
+            <h3>
+              High Score: <span id="high-score">0</span>
+            </h3>
+          </div>
+
+          <div class="info">
+            <h3>
+              Score: <span id="score">0</span>
+            </h3>
+          </div>
+
+          <div class="info">
+            <h3>
+              Time: <span id="time">00-00</span>
+            </h3>
+          </div>
+        </div>
+
+        <!-- The game board grid goes here.
+             The JavaScript script fills this dynamically with blocks. -->
+        <div class="board">
+          <!-- Example cell (only for reference):
+          <div class="block"></div>
+          -->
+        </div>
+      </section>
+    </main>
+
+    <!-- All the game logic lives in here -->
+    <script src="script.js"></script>
+  </body>
+</html>
