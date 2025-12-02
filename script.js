@@ -1,252 +1,213 @@
-// Grab things from the page that we need to talk to
+// ========== Grab all the important elements ==========
 const board = document.querySelector('.board');
 const modal = document.querySelector('.modal');
-
 const startGameModal = document.querySelector('.start-game');
 const startBtn = document.querySelector('.btn-start');
-
 const gameOverModal = document.querySelector('.game-over');
 const restartBtn = document.querySelector('.btn-restart');
-
 const highScoreElement = document.querySelector('#high-score');
 const scoreElement = document.querySelector('#score');
 const timeElement = document.querySelector('#time');
 
-// Scores and time
+// ========== Game State ==========
 let highScore = Number(localStorage.getItem('highScore')) || 0;
 let score = 0;
-let timeText = '00-00';
-
-highScoreElement.innerText = highScore;
-scoreElement.innerText = score;
-timeElement.innerText = timeText;
-
-// Size of each block in the grid
-const blockSize = 50;
-
-// Figure out how many rows and columns we can fit
-const cols = Math.floor(board.clientWidth / blockSize);
-const rows = Math.floor(board.clientHeight / blockSize);
-
-// IDs for our intervals so we can stop them when needed
-let gameLoopId = null;
-let timerId = null;
-
-// How often the snake moves (ms)
-const speed = 400;
-
-// We store each cell element in this object using "row-col" as key
-const cells = {};
-
-// Snake and food state
-let snake = [
-  {
-    x: Math.floor(Math.random() * rows),
-    y: Math.floor(Math.random() * cols),
-  },
-];
-
+let time = '00-00';
+let intervelId = null;
+let timerIntervalId = null;
+let speed = 400;
+const blocks = {};
 let direction = 'right';
 
+// Make block size flexible for all screens
+let blockSize = getBlockSize();
+let cols = Math.floor(board.clientWidth / blockSize);
+let rows = Math.floor(board.clientHeight / blockSize);
+
+// Randomize start position and food
+let snake = [
+  { x: Math.floor(Math.random() * rows), y: Math.floor(Math.random() * cols) },
+];
 let food = {
   x: Math.floor(Math.random() * rows),
   y: Math.floor(Math.random() * cols),
 };
 
-// Build the grid once at the start
-for (let row = 0; row < rows; row++) {
-  for (let col = 0; col < cols; col++) {
-    const cell = document.createElement('div');
-    cell.classList.add('block');
-    board.appendChild(cell);
+// Display initial scores
+highScoreElement.innerText = highScore;
+scoreElement.innerText = score;
 
-    cells[`${row}-${col}`] = cell;
+// ========== Setup the Board ==========
+createBoard();
+
+// Function: calculate block size based on device width
+function getBlockSize() {
+  if (window.innerWidth <= 480) return 30; // small phones
+  if (window.innerWidth <= 768) return 40; // tablets
+  return 50; // desktops
+}
+
+// Create grid dynamically
+function createBoard() {
+  board.innerHTML = ''; // Clear if resizing
+  Object.keys(blocks).forEach((key) => delete blocks[key]); // Reset old cells
+
+  cols = Math.floor(board.clientWidth / blockSize);
+  rows = Math.floor(board.clientHeight / blockSize);
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const block = document.createElement('div');
+      block.classList.add('block');
+      block.style.width = `${blockSize}px`;
+      block.style.height = `${blockSize}px`;
+      board.appendChild(block);
+      blocks[`${row}-${col}`] = block;
+    }
   }
 }
 
-// Draw one frame of the game
+// ========== Main Render Function ==========
 function render() {
-  const head = snake[0];
+  let head;
 
-  // Decide where the new head should go based on current direction
-  let newHead = { x: head.x, y: head.y };
+  // Paint food
+  blocks[`${food.x}-${food.y}`]?.classList.add('food');
 
-  if (direction === 'left') {
-    newHead.y -= 1;
-  } else if (direction === 'right') {
-    newHead.y += 1;
-  } else if (direction === 'up') {
-    newHead.x -= 1;
-  } else if (direction === 'down') {
-    newHead.x += 1;
-  }
+  // Determine new head position
+  if (direction === 'left') head = { x: snake[0].x, y: snake[0].y - 1 };
+  else if (direction === 'right') head = { x: snake[0].x, y: snake[0].y + 1 };
+  else if (direction === 'up') head = { x: snake[0].x - 1, y: snake[0].y };
+  else if (direction === 'down') head = { x: snake[0].x + 1, y: snake[0].y };
 
-  // If the new head is outside the board, the game ends
-  const outOfBounds =
-    newHead.x < 0 ||
-    newHead.x >= rows ||
-    newHead.y < 0 ||
-    newHead.y >= cols;
-
-  if (outOfBounds) {
-    clearInterval(gameLoopId);
-    clearInterval(timerId);
-
-    // Show the game over modal
+  // If snake hits wall → game over
+  if (head.x < 0 || head.x >= rows || head.y < 0 || head.y >= cols) {
+    clearInterval(intervelId);
+    clearInterval(timerIntervalId);
     modal.style.display = 'flex';
     startGameModal.style.display = 'none';
     gameOverModal.style.display = 'flex';
-
     return;
   }
 
-  // Mark the current food cell
-  cells[`${food.x}-${food.y}`].classList.add('food');
-
-  let shouldGrow = false;
-
-  // Check if the snake eats the food
-  if (newHead.x === food.x && newHead.y === food.y) {
-    // Remove food mark from old place
-    cells[`${food.x}-${food.y}`].classList.remove('food');
-
-    // Pick a new random position for food
+  // Food collision
+  let grow = false;
+  if (food.x === head.x && food.y === head.y) {
+    blocks[`${food.x}-${food.y}`].classList.remove('food');
     food = {
       x: Math.floor(Math.random() * rows),
       y: Math.floor(Math.random() * cols),
     };
-
-    cells[`${food.x}-${food.y}`].classList.add('food');
-
-    shouldGrow = true;
-
-    // Update score
+    grow = true;
     score += 10;
-    scoreElement.innerText = score;
-
     if (score > highScore) {
       highScore = score;
-      highScoreElement.innerText = highScore;
       localStorage.setItem('highScore', String(highScore));
     }
+    highScoreElement.innerText = highScore;
+    scoreElement.innerText = score;
   }
 
-  // Clear the snake's previous position from the board
+  // Clear old snake
   snake.forEach((part) => {
-    cells[`${part.x}-${part.y}`].classList.remove('fill');
+    blocks[`${part.x}-${part.y}`]?.classList.remove('fill');
   });
 
-  // Add the new head at the front of the snake
-  snake.unshift(newHead);
+  // Move snake
+  snake.unshift(head);
+  if (!grow) snake.pop();
 
-  // If we didn't eat, remove the tail so length stays same
-  if (!shouldGrow) {
-    snake.pop();
-  }
-
-  // Draw the snake at its new position
+  // Draw new snake
   snake.forEach((part) => {
-    cells[`${part.x}-${part.y}`].classList.add('fill');
+    blocks[`${part.x}-${part.y}`]?.classList.add('fill');
   });
 }
 
-// Change direction based on arrow keys
+// ========== Handle Arrow Key Inputs ==========
 addEventListener('keydown', (event) => {
   const key = event.key;
+  if (key === 'ArrowUp' && direction !== 'down') direction = 'up';
+  else if (key === 'ArrowDown' && direction !== 'up') direction = 'down';
+  else if (key === 'ArrowLeft' && direction !== 'right') direction = 'left';
+  else if (key === 'ArrowRight' && direction !== 'left') direction = 'right';
+});
 
-  if (key === 'ArrowUp') {
-    direction = 'up';
-  } else if (key === 'ArrowDown') {
-    direction = 'down';
-  } else if (key === 'ArrowLeft') {
-    direction = 'left';
-  } else if (key === 'ArrowRight') {
-    direction = 'right';
+// ========== Touch Controls for Mobile ==========
+let touchStartX = 0;
+let touchStartY = 0;
+
+board.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+});
+
+board.addEventListener('touchend', (e) => {
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+
+  // Determine swipe direction
+  if (Math.abs(dx) > Math.abs(dy)) {
+    direction = dx > 0 ? 'right' : 'left';
+  } else {
+    direction = dy > 0 ? 'down' : 'up';
   }
 });
 
-// Start button: begins timer and game loop
+// ========== Start Game Button ==========
 startBtn.addEventListener('click', () => {
-  // Reset that "game over" modal state if needed
-  gameOverModal.style.display = 'none';
-  startGameModal.style.display = 'none';
   modal.style.display = 'none';
-
-  // Start the timer (simple mm-ss style, but with "-")
-  timerId = setInterval(() => {
-    let [min, sec] = timeText.split('-').map(Number);
-
-    if (sec >= 59) {
-      min += 1;
-      sec = 0;
-    } else {
-      sec += 1;
-    }
-
-    timeText = `${String(min).padStart(2, '0')}-${String(sec).padStart(2, '0')}`;
-    timeElement.innerText = timeText;
-  }, 1000);
-
-  // Start the game loop
-  gameLoopId = setInterval(render, speed);
+  timerIntervalId = startTimer();
+  intervelId = setInterval(render, speed);
 });
 
-// Restart button: resets everything and starts again
+// ========== Restart Button ==========
 restartBtn.addEventListener('click', restartGame);
 
 function restartGame() {
-  // Hide modal
   modal.style.display = 'none';
-  gameOverModal.style.display = 'none';
-  startGameModal.style.display = 'none';
-
-  // Reset score and time
   score = 0;
   scoreElement.innerText = score;
-  timeText = '00-00';
-  timeElement.innerText = timeText;
+  time = '00-00';
+  timeElement.innerText = time;
 
-  // Remove old food from its previous position
-  cells[`${food.x}-${food.y}`].classList.remove('food');
+  // Reset snake and food
+  snake.forEach((part) => {
+    blocks[`${part.x}-${part.y}`]?.classList.remove('fill');
+  });
 
-  // Place new food somewhere random
+  snake = [
+    { x: Math.floor(Math.random() * rows), y: Math.floor(Math.random() * cols) },
+  ];
+
   food = {
     x: Math.floor(Math.random() * rows),
     y: Math.floor(Math.random() * cols),
   };
-  cells[`${food.x}-${food.y}`].classList.add('food');
 
-  // Clear old snake from the board
-  snake.forEach((part) => {
-    cells[`${part.x}-${part.y}`].classList.remove('fill');
-  });
-
-  // Create a brand-new snake at a random place
-  snake = [
-    {
-      x: Math.floor(Math.random() * rows),
-      y: Math.floor(Math.random() * cols),
-    },
-  ];
-
-  // Make sure any old loop or timer is stopped
-  clearInterval(gameLoopId);
-  clearInterval(timerId);
-
-  // Start fresh timer and game loop
-  timerId = setInterval(() => {
-    let [min, sec] = timeText.split('-').map(Number);
-
-    if (sec >= 59) {
-      min += 1;
-      sec = 0;
-    } else {
-      sec += 1;
-    }
-
-    timeText = `${String(min).padStart(2, '0')}-${String(sec).padStart(2, '0')}`;
-    timeElement.innerText = timeText;
-  }, 1000);
-
-  gameLoopId = setInterval(render, speed);
+  clearInterval(intervelId);
+  clearInterval(timerIntervalId);
+  timerIntervalId = startTimer();
+  intervelId = setInterval(render, speed);
 }
+
+// ========== Timer ==========
+function startTimer() {
+  return setInterval(() => {
+    let [min, sec] = time.split('-').map(Number);
+    sec++;
+    if (sec > 59) {
+      min++;
+      sec = 0;
+    }
+    time = `${String(min).padStart(2, '0')}-${String(sec).padStart(2, '0')}`;
+    timeElement.innerText = time;
+  }, 1000);
+}
+
+// ========== Handle Screen Resize ==========
+window.addEventListener('resize', () => {
+  blockSize = getBlockSize();
+  createBoard();
+});
