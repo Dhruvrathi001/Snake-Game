@@ -132,12 +132,6 @@ Snake-Game/
 
 ---
 
-## 📄 License
-
-This project is open-source under the [MIT License](LICENSE).
-
----
-
 ## 🤝 Contributing
 
 Contributions are always welcome!
